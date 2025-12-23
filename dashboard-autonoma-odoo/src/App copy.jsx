@@ -37,68 +37,45 @@ function App() {
     const fetchData = async () => {
       try {
         console.log("1. Autenticando...");
+        // Paso A: Autenticar para obtener el UID (User ID)
         const authResponse = await odooCall("common", "login", [
           ODOO_CONFIG.db,
           ODOO_CONFIG.username,
           ODOO_CONFIG.password
         ]);
-        const uid = authResponse.data.result;
-        if (!uid) throw new Error("Fallo autenticación");
 
-        // --- AQUI ESTA EL CAMBIO: Usamos read_group en vez de search_read ---
-        console.log("2. Pidiendo estadísticas agrupadas (Optimizado)...");
+        const uid = authResponse.data.result;
         
-        const groupResponse = await odooCall("object", "execute_kw", [
+        if (!uid) {
+          throw new Error("Fallo la autenticación. Revisa usuario/pass/db.");
+        }
+        console.log("Autenticado! UID:", uid);
+
+        // Paso B: Buscar los Leads (limitado a 100 para probar)
+        console.log("2. Buscando Leads...");
+        const searchResponse = await odooCall("object", "execute_kw", [
           ODOO_CONFIG.db,
           uid,
           ODOO_CONFIG.password,
           "crm.lead",
-          "read_group", // <--- Método optimizado
-          [
-             [], // Dominio (filtro vacío = todos los leads)
-             ["stage_id", "expected_revenue"], // Campos a agrupar/sumar
-             ["stage_id"] // Agrupar POR etapa
-          ],
-          {} // Opciones extra
+          "search_read",
+          [[]], // Filtro vacío = Traer todos (Cuidado si son miles)
+          { 
+            fields: ["name", "stage_id", "expected_revenue"], 
+            limit: 100 
+          }
         ]);
 
-        const dataAgrupada = groupResponse.data.result;
+        const data = searchResponse.data.result;
         
-        // Procesamos los datos ligeros que llegan
-        if (dataAgrupada) {
-            let totalCount = 0;
-            let totalDinero = 0;
-            const conteoPorEtapa = {};
-
-            dataAgrupada.forEach(grupo => {
-                // Odoo devuelve: { stage_id: [1, "Nuevo"], stage_id_count: 15, expected_revenue: 5000 }
-                
-                // Obtenemos el nombre de la etapa
-                const nombreEtapa = grupo.stage_id ? grupo.stage_id[1] : "Sin Etapa";
-                
-                // Sumamos totales
-                const cantidad = grupo.stage_id_count || 0;
-                const dinero = grupo.expected_revenue || 0;
-
-                conteoPorEtapa[nombreEtapa] = cantidad;
-                totalCount += cantidad;
-                totalDinero += dinero;
-            });
-
-            setStats({
-                total: totalCount,
-                dinero: totalDinero.toLocaleString('es-PE', { style: 'currency', currency: 'PEN' }),
-                porEtapa: conteoPorEtapa
-            });
-            
-            // Ya no llenamos "leads" con la lista gigante para no saturar
-            // Si quisieras ver la lista, harías una segunda llamada solo para los últimos 10
-            setLeads([]); 
+        if (data) {
+          setLeads(data);
+          calcularEstadisticas(data);
         }
 
       } catch (err) {
         console.error("Error:", err);
-        setError(err.message || "Error de conexión");
+        setError(err.message || "Error conectando a Odoo (Posible bloqueo CORS)");
       } finally {
         setLoading(false);
       }
