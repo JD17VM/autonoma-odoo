@@ -1,152 +1,50 @@
-import React, { useEffect, useState } from 'react';
-import axios from 'axios';
-
-// --- CONFIGURACIÓN (PON TUS DATOS DE N8N AQUÍ) ---
-const ODOO_CONFIG = {
-  url: '/odoo-api', // <--- CAMBIO CLAVE: Apuntamos al proxy local
-  db: 'crm_final_restored',
-  username: 'autonoma@jpawaj.com',
-  password: 'jpawajacademiaesparta01'
-};
+// src/App.jsx
+import React, { useState } from 'react';
+import { useDashboardData } from './hooks/useDashboardData';
+import LeadFunnel from './components/LeadFunnel';
 
 function App() {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [leads, setLeads] = useState([]);
-  const [stats, setStats] = useState({ total: 0, porEtapa: {} });
+  // Estado del filtro: 'week', 'month', 'quarter', 'year', 'all'
+  const [filter, setFilter] = useState('month'); 
+  
+  // El hook se encarga de traer los datos correctos cuando el filtro cambia
+  const { data, loading } = useDashboardData(filter);
 
-  // Función para hacer llamadas RPC a Odoo
-  const odooCall = async (service, method, args) => {
-    const payload = {
-      jsonrpc: "2.0",
-      method: "call",
-      params: {
-        service: service,
-        method: method,
-        args: args,
-      },
-      id: Math.floor(Math.random() * 1000000000),
-    };
-
-    return axios.post(ODOO_CONFIG.url, payload, { // Ya no usamos /jsonrpc aquí porque el proxy lo añade
-      headers: { 'Content-Type': 'application/json' }
-    });
-  };
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        console.log("1. Autenticando...");
-        const authResponse = await odooCall("common", "login", [
-          ODOO_CONFIG.db,
-          ODOO_CONFIG.username,
-          ODOO_CONFIG.password
-        ]);
-        const uid = authResponse.data.result;
-        if (!uid) throw new Error("Fallo autenticación");
-
-        // --- AQUI ESTA EL CAMBIO: Usamos read_group en vez de search_read ---
-        console.log("2. Pidiendo estadísticas agrupadas (Optimizado)...");
-        
-        const groupResponse = await odooCall("object", "execute_kw", [
-          ODOO_CONFIG.db,
-          uid,
-          ODOO_CONFIG.password,
-          "crm.lead",
-          "read_group", // <--- Método optimizado
-          [
-             [], // Dominio (filtro vacío = todos los leads)
-             ["stage_id", "expected_revenue"], // Campos a agrupar/sumar
-             ["stage_id"] // Agrupar POR etapa
-          ],
-          {} // Opciones extra
-        ]);
-
-        const dataAgrupada = groupResponse.data.result;
-        
-        // Procesamos los datos ligeros que llegan
-        if (dataAgrupada) {
-            let totalCount = 0;
-            let totalDinero = 0;
-            const conteoPorEtapa = {};
-
-            dataAgrupada.forEach(grupo => {
-                // Odoo devuelve: { stage_id: [1, "Nuevo"], stage_id_count: 15, expected_revenue: 5000 }
-                
-                // Obtenemos el nombre de la etapa
-                const nombreEtapa = grupo.stage_id ? grupo.stage_id[1] : "Sin Etapa";
-                
-                // Sumamos totales
-                const cantidad = grupo.stage_id_count || 0;
-                const dinero = grupo.expected_revenue || 0;
-
-                conteoPorEtapa[nombreEtapa] = cantidad;
-                totalCount += cantidad;
-                totalDinero += dinero;
-            });
-
-            setStats({
-                total: totalCount,
-                dinero: totalDinero.toLocaleString('es-PE', { style: 'currency', currency: 'PEN' }),
-                porEtapa: conteoPorEtapa
-            });
-            
-            // Ya no llenamos "leads" con la lista gigante para no saturar
-            // Si quisieras ver la lista, harías una segunda llamada solo para los últimos 10
-            setLeads([]); 
-        }
-
-      } catch (err) {
-        console.error("Error:", err);
-        setError(err.message || "Error de conexión");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, []);
-
-  // Función simple para agrupar datos
-  const calcularEstadisticas = (data) => {
-    const conteo = {};
-    data.forEach(lead => {
-      // stage_id viene como [id, "Nombre Etapa"] o false
-      const nombreEtapa = lead.stage_id ? lead.stage_id[1] : "Sin Etapa";
-      conteo[nombreEtapa] = (conteo[nombreEtapa] || 0) + 1;
-    });
-    setStats({ total: data.length, porEtapa: conteo });
-  };
+  // Estilos simples para los botones
+  const btnStyle = (active) => ({
+    padding: '8px 16px',
+    marginRight: '10px',
+    cursor: 'pointer',
+    backgroundColor: active ? '#007bff' : '#f0f0f0',
+    color: active ? '#fff' : '#333',
+    border: 'none',
+    borderRadius: '5px',
+    fontWeight: 'bold'
+  });
 
   return (
-    <div style={{ padding: '20px', fontFamily: 'sans-serif' }}>
-      <h1>Conexión React + Odoo</h1>
+    <div style={{ padding: '20px', fontFamily: 'sans-serif', maxWidth: '1200px', margin: '0 auto' }}>
       
-      {loading && <p>🔄 Cargando datos del CRM...</p>}
-      {error && <div style={{ color: 'red', border: '1px solid red', padding: '10px' }}>
-        <strong>Error:</strong> {error}
-        <br/><small>Nota: Si ves un "Network Error", es probable que Odoo esté bloqueando la conexión externa (CORS).</small>
-      </div>}
+      {/* HEADER Y SELECTOR DE FECHAS */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+        <h1 style={{ margin: 0 }}>Dashboard Comercial</h1>
+        <div>
+            <button onClick={() => setFilter('week')} style={btnStyle(filter === 'week')}>7 Días</button>
+            <button onClick={() => setFilter('month')} style={btnStyle(filter === 'month')}>Este Mes</button>
+            <button onClick={() => setFilter('quarter')} style={btnStyle(filter === 'quarter')}>Trimestre</button>
+            <button onClick={() => setFilter('year')} style={btnStyle(filter === 'year')}>Año</button>
+        </div>
+      </div>
 
-      {!loading && !error && (
-        <div style={{ display: 'flex', gap: '20px' }}>
-          {/* Panel Izquierdo: Resumen */}
-          <div style={{ flex: 1, border: '1px solid #ccc', padding: '15px', borderRadius: '8px' }}>
-            <h2>Resumen</h2>
-            <p style={{ fontSize: '24px', fontWeight: 'bold' }}>Total Leads: {stats.total}</p>
-            <h3>Por Etapa:</h3>
-            <ul>
-              {Object.entries(stats.porEtapa).map(([etapa, cantidad]) => (
-                <li key={etapa}><strong>{etapa}:</strong> {cantidad}</li>
-              ))}
-            </ul>
-          </div>
+      {/* ZONA DE CARGA Y ERRORES */}
+      {loading && <p>🔄 Actualizando datos de Odoo...</p>}
 
-          {/* Panel Derecho: Lista Cruda (para verificar) */}
-          <div style={{ flex: 1, background: '#f5f5f5', padding: '15px', borderRadius: '8px', maxHeight: '400px', overflow: 'auto' }}>
-            <h3>Datos Crudos (Primeros 5)</h3>
-            <pre>{JSON.stringify(leads.slice(0, 5), null, 2)}</pre>
-          </div>
+      {/* CONTENIDO PRINCIPAL */}
+      {!loading && data && (
+        <div style={{ background: '#fff', padding: '20px', borderRadius: '10px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+            <h3 style={{ marginTop: 0, color: '#555' }}>Embudo de Conversión ({filter})</h3>
+            {/* Aquí pasamos los datos formateados al gráfico */}
+            <LeadFunnel data={data.funnelData} />
         </div>
       )}
     </div>
