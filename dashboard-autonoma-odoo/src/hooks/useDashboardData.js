@@ -1,11 +1,21 @@
-// src/hooks/useDashboardData.js
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { getOdooDomain } from '../utils/dateHelpers';
 import { ODOO_CONFIG } from '../config/odoo.config';
 
-export const useDashboardData = (filterType) => {
-    const [data, setData] = useState(null);
+// Mapeo de etiquetas igual a tu archivo Python
+// Para que en el gráfico se vea bonito (Whatsapp 1) y no el código (whatsapp_1)
+const CANAL_LABELS = {
+    'whatsapp_1': 'Whatsapp 1',
+    'whatsapp_2': 'Whatsapp 2',
+    'messenger': 'Messenger',
+    'instagram': 'Instagram',
+    'manual': 'Manual',
+    'web': 'Web / Otros' // Por si acaso hay alguno extra
+};
+
+export const useDashboardData = (filterType, salespersonId) => {
+    const [data, setData] = useState({ funnelData: [], pieData: [] });
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
@@ -15,71 +25,86 @@ export const useDashboardData = (filterType) => {
             setError(null);
             
             try {
-                console.log("🔍 Cargando datos con filtro:", filterType);
-                console.log("🌐 URL Odoo:", ODOO_CONFIG.url);
-                
-                // 1. Calcular el filtro de fecha
+                // 1. PREPARAR FILTROS
                 const dateDomain = getOdooDomain(filterType);
-                console.log("📅 Dominio de fecha:", dateDomain);
+                const userDomain = salespersonId ? [['user_id', '=', parseInt(salespersonId)]] : [];
+                const finalDomain = [...dateDomain, ...userDomain];
 
-                // 2. Autenticar
+                // 2. AUTENTICACIÓN
                 const auth = await axios.post(ODOO_CONFIG.url, {
-                    jsonrpc: "2.0", 
-                    method: "call", 
-                    id: 1,
+                    jsonrpc: "2.0", method: "call", id: 1,
                     params: { 
-                        service: "common", 
-                        method: "login", 
+                        service: "common", method: "login", 
                         args: [ODOO_CONFIG.db, ODOO_CONFIG.username, ODOO_CONFIG.password] 
                     }
                 });
-                
                 const uid = auth.data.result;
-                console.log("✅ UID obtenido:", uid);
+                if (!uid) throw new Error("Fallo de autenticación");
 
-                if (!uid) {
-                    throw new Error("No se pudo autenticar con Odoo");
-                }
-
-                // 3. Pedir datos AGRUPADOS (read_group) con el filtro de fecha
-                const response = await axios.post(ODOO_CONFIG.url, {
-                    jsonrpc: "2.0", 
-                    method: "call", 
-                    id: 2,
+                // 3. PETICIÓN A: EMBUDO (Agrupado por Stage)
+                const reqFunnel = axios.post(ODOO_CONFIG.url, {
+                    jsonrpc: "2.0", method: "call", id: 2,
                     params: {
-                        service: "object", 
-                        method: "execute_kw",
+                        service: "object", method: "execute_kw",
                         args: [
-                            ODOO_CONFIG.db, 
-                            uid, 
-                            ODOO_CONFIG.password,
-                            "crm.lead", 
-                            "read_group", 
-                            [
-                                dateDomain,
-                                ["stage_id", "expected_revenue"], 
-                                ["stage_id"]
-                            ]
+                            ODOO_CONFIG.db, uid, ODOO_CONFIG.password,
+                            "crm.lead", "read_group", 
+                            [finalDomain, ["stage_id"], ["stage_id"]]
                         ]
                     }
                 });
 
-                const rawData = response.data.result || [];
-                console.log("📊 Datos recibidos:", rawData);
+                // 4. PETICIÓN B: CANAL (Campo 'canal' del tipo Selection)
+                // IMPORTANTE: Aquí usamos tu campo personalizado 'canal'
+                const reqChannel = axios.post(ODOO_CONFIG.url, {
+                    jsonrpc: "2.0", method: "call", id: 3,
+                    params: {
+                        service: "object", method: "execute_kw",
+                        args: [
+                            ODOO_CONFIG.db, uid, ODOO_CONFIG.password,
+                            "crm.lead", "read_group", 
+                            [finalDomain, ["canal"], ["canal"]] // <--- AGRUPAR POR 'canal'
+                        ]
+                    }
+                });
 
-                // 4. Formatear para Nivo Funnel
-                const funnelData = rawData.map(item => ({
+                // Ejecutamos ambas peticiones
+                const [resFunnel, resChannel] = await Promise.all([reqFunnel, reqChannel]);
+
+                // 5. FORMATEAR DATOS
+                
+                // --- Embudo ---
+                const rawFunnel = resFunnel.data.result || [];
+                const funnelData = rawFunnel.map(item => ({
                     id: item.stage_id ? item.stage_id[1] : "Sin Etapa",
                     value: item.stage_id_count,
                     label: item.stage_id ? item.stage_id[1] : "Sin Etapa",
                 })).sort((a, b) => b.value - a.value);
 
-                console.log("✨ Datos formateados:", funnelData);
-                setData({ funnelData });
+                // --- Tarta (Canal) ---
+                const rawChannel = resChannel.data.result || [];
+                console.log("🥧 Datos Canal (Selection):", rawChannel); 
+
+                const pieData = rawChannel.map(item => {
+                    // En campos Selection, Odoo devuelve la clave (ej: 'whatsapp_1')
+                    // Si viene false, es que está vacío
+                    const rawKey = item.canal; 
+                    
+                    // Traducimos la clave a nombre bonito usando nuestro mapa
+                    const label = rawKey ? (CANAL_LABELS[rawKey] || rawKey) : "Sin Canal";
+                    
+                    return {
+                        id: label,
+                        label: label,
+                        value: item.canal_count // Odoo devuelve campo + _count
+                    };
+                }).filter(item => item.value > 0)
+                  .sort((a, b) => b.value - a.value);
+
+                setData({ funnelData, pieData });
 
             } catch (e) {
-                console.error("❌ Error cargando dashboard:", e);
-                console.error("Detalles del error:", e.response?.data || e.message);
+                console.error("Error cargando dashboard:", e);
                 setError(e.message);
             } finally {
                 setLoading(false);
@@ -87,7 +112,7 @@ export const useDashboardData = (filterType) => {
         };
 
         load();
-    }, [filterType]);
+    }, [filterType, salespersonId]);
 
     return { data, loading, error };
 };
