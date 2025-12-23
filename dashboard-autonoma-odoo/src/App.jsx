@@ -3,6 +3,9 @@ import axios from 'axios';
 import { useDashboardData } from './hooks/useDashboardData';
 import LeadFunnel from './components/LeadFunnel';
 import SourcePie from './components/SourcePie';
+import CareerBar from './components/CareerBar';
+import KpiRow from './components/KpiRow';
+
 // Asegúrate de que esta ruta sea correcta según tu proyecto, 
 // o define ODOO_CONFIG aquí mismo si prefieres.
 import { ODOO_CONFIG } from './config/odoo.config'; 
@@ -103,6 +106,10 @@ function App() {
         // Usamos CSS Grid para ponerlos uno al lado del otro
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '20px' }}>
             
+            {/* 1. FILA DE KPIs (NUEVO) */}
+            {/* Le pasamos los datos del embudo para que haga los cálculos */}
+            <KpiRow funnelData={data.funnelData} />
+
             {/* CARD 1: EMBUDO */}
             <div style={{ background: '#fff', padding: '20px', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
                 <h3 style={{ marginTop: 0, color: '#444', borderBottom: '1px solid #eee', paddingBottom: '10px' }}>
@@ -118,6 +125,14 @@ function App() {
                 </h3>
                 {/* Pasamos los datos del Pie Chart */}
                 <SourcePie data={data.pieData} />
+            </div>
+
+            {/* 3. CARRERAS (NUEVO - Ocupa 2 columnas si hay espacio) */}
+            <div style={{ gridColumn: '1 / -1', background: '#fff', padding: '20px', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
+                <h3 style={{ marginTop: 0, color: '#444', borderBottom: '1px solid #eee', paddingBottom: '10px' }}>
+                    Top 10 Carreras Solicitadas
+                </h3>
+                <CareerBar data={data.careerData} />
             </div>
 
         </div>
