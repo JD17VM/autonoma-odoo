@@ -24,11 +24,11 @@ app.use('/odoo-api', createProxyMiddleware({
 // Servir la app de React compilada
 app.use(express.static(path.join(__dirname, 'dist')));
 
-app.get('*', (req, res) => {
+app.get(/.*/, (req, res) => {
     res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => { // <--- Recuerda dejar el 0.0.0.0 que te dije antes
     console.log(`Servidor corriendo en puerto ${PORT}`);
 });
