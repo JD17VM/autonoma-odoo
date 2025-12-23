@@ -5,7 +5,7 @@ import LeadFunnel from './components/LeadFunnel';
 
 function App() {
   // Estado del filtro: 'week', 'month', 'quarter', 'year', 'all'
-  const [filter, setFilter] = useState('month'); 
+  const [filter, setFilter] = useState('year'); 
   
   // El hook se encarga de traer los datos correctos cuando el filtro cambia
   const { data, loading } = useDashboardData(filter);

@@ -8,33 +8,27 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 
-// IMPORTANTE: NO usamos app.use(express.json()) aquí.
-// Dejamos que los datos pasen crudos (stream) hacia Odoo.
-
-// Configuración del Proxy
+// AQUI ES DONDE OCURRE LA MAGIA
+// Redirige lo que venga a '/odoo-api' hacia tu Odoo real '/jsonrpc'
 app.use('/odoo-api', createProxyMiddleware({
-    target: 'https://odoo-crm-jpawaj-odoo.essftr.easypanel.host',
-    changeOrigin: true,       // Engaña a Odoo para que crea que la petición viene de su mismo dominio
+    target: 'https://odoo-crm-jpawaj-odoo.essftr.easypanel.host', // Tu URL base de Odoo
+    changeOrigin: true,
     pathRewrite: {
-        '^/odoo-api': '/jsonrpc', // Convierte /odoo-api -> /jsonrpc
+        '^/odoo-api': '/jsonrpc', // Convierte la ruta para que Odoo la entienda
     },
     onProxyReq: (proxyReq) => {
-        // Forzamos el tipo de contenido para asegurar que Odoo sepa que es JSON
         proxyReq.setHeader('Content-Type', 'application/json');
     }
 }));
 
-// Servir la aplicación React (Archivos estáticos)
+// Servir la app de React compilada
 app.use(express.static(path.join(__dirname, 'dist')));
 
-// Manejar cualquier otra ruta (para que React Router funcione al recargar)
-// Usamos regex /.*/ para evitar el error de Express 5
 app.get(/.*/, (req, res) => {
     res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
-// Arrancar servidor
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, '0.0.0.0', () => {
+app.listen(PORT, '0.0.0.0', () => { // <--- Recuerda dejar el 0.0.0.0 que te dije antes
     console.log(`Servidor corriendo en puerto ${PORT}`);
 });
