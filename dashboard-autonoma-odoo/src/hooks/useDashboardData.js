@@ -9,6 +9,7 @@ const CANAL_LABELS = {
     'whatsapp_2': 'Whatsapp Colegio',
     'messenger': 'Messenger',
     'instagram': 'Instagram',
+    'facebook': 'Facebook',
     'manual': 'Manual',
     'web': 'Web / Otros'
 };
@@ -19,7 +20,16 @@ const AREA_LABELS = {
     'sociales': 'Sociales ⚖️'
 };
 
-export const useDashboardData = (filterType, salespersonId) => {
+const NO_MATRICULA_LABELS = {
+    'precio': 'Precio',
+    'propuesta': 'No convenció la propuesta',
+    'competencia': 'Se fue a otra institución',
+    'seguimiento': 'Falta de seguimiento',
+    'familiar': 'Decisión familiar',
+    'ninguno': 'Ninguno'
+};
+
+export const useDashboardData = (filterType, salespersonId, customDays) => {
     // AHORA TENEMOS MÁS DATASETS
     const [data, setData] = useState({ 
         funnelData: [], 
@@ -27,7 +37,13 @@ export const useDashboardData = (filterType, salespersonId) => {
         careerData: [],
         areaData: [],      // <--- NUEVO
         universityData: [], // <--- NUEVO
-        serviceData: []     // <--- NUEVO (Turnos/Modalidad)
+        serviceData: [],     // <--- NUEVO (Turnos/Modalidad)
+        noEnrollmentData: [], // <--- NUEVO (Motivos de no matrícula)
+        avgResponseTime: 0,   // <--- NUEVO (Promedio Respuesta)
+        salesByAdvisor: [],   // <--- NUEVO (Ventas por Asesor)
+        avgDaysToClose: 0,    // <--- NUEVO (Ciclo de Venta)
+        forecastRevenue: 0,   // <--- NUEVO (Proyección)
+        marketingData: []     // <--- NUEVO (Solo Redes Sociales)
     });
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -39,7 +55,7 @@ export const useDashboardData = (filterType, salespersonId) => {
             
             try {
                 // 1. FILTROS
-                const dateDomain = getOdooDomain(filterType);
+                const dateDomain = getOdooDomain(filterType, customDays);
                 const userDomain = salespersonId ? [['user_id', '=', parseInt(salespersonId)]] : [];
                 const finalDomain = [...dateDomain, ...userDomain];
 
@@ -56,7 +72,7 @@ export const useDashboardData = (filterType, salespersonId) => {
                 // 1. EMBUDO
                 const reqFunnel = axios.post(ODOO_CONFIG.url, {
                     jsonrpc: "2.0", method: "call", id: 2,
-                    params: { service: "object", method: "execute_kw", args: [ODOO_CONFIG.db, uid, ODOO_CONFIG.password, "crm.lead", "read_group", [finalDomain, ["stage_id"], ["stage_id"]]] }
+                    params: { service: "object", method: "execute_kw", args: [ODOO_CONFIG.db, uid, ODOO_CONFIG.password, "crm.lead", "read_group", [finalDomain, ["stage_id", "expected_revenue"], ["stage_id"]]] }
                 });
 
                 // 2. CANAL
@@ -89,8 +105,42 @@ export const useDashboardData = (filterType, salespersonId) => {
                     params: { service: "object", method: "execute_kw", args: [ODOO_CONFIG.db, uid, ODOO_CONFIG.password, "crm.lead", "read_group", [finalDomain, ["servicio_educativo"], ["servicio_educativo"]]] }
                 });
 
+                // 7. MOTIVO NO MATRICULA (NUEVO)
+                const reqNoEnrollment = axios.post(ODOO_CONFIG.url, {
+                    jsonrpc: "2.0", method: "call", id: 8,
+                    params: { service: "object", method: "execute_kw", args: [ODOO_CONFIG.db, uid, ODOO_CONFIG.password, "crm.lead", "read_group", [finalDomain, ["motivo_no_matricula"], ["motivo_no_matricula"]]] }
+                });
+
+                // 8. PROMEDIO RESPUESTA (NUEVO)
+                // Filtramos > 0 para no ensuciar el promedio con leads sin respuesta
+                const domainAvg = [...finalDomain, ['promedio_respuesta_handoff', '>', 0]];
+                const reqAvgResponse = axios.post(ODOO_CONFIG.url, {
+                    jsonrpc: "2.0", method: "call", id: 9,
+                    params: { service: "object", method: "execute_kw", args: [ODOO_CONFIG.db, uid, ODOO_CONFIG.password, "crm.lead", "read_group", [domainAvg, ["promedio_respuesta_handoff"], ["user_id"]]] }
+                });
+
+                // 9. VENTAS POR ASESOR (Ganados)
+                const domainWon = [...finalDomain, ['probability', '=', 100]];
+                const reqSalesAdvisor = axios.post(ODOO_CONFIG.url, {
+                    jsonrpc: "2.0", method: "call", id: 10,
+                    params: { service: "object", method: "execute_kw", args: [ODOO_CONFIG.db, uid, ODOO_CONFIG.password, "crm.lead", "read_group", [domainWon, ["user_id"], ["user_id"]]] }
+                });
+
+                // 10. CICLO DE VENTA (Días para cerrar)
+                const reqDaysClose = axios.post(ODOO_CONFIG.url, {
+                    jsonrpc: "2.0", method: "call", id: 11,
+                    params: { service: "object", method: "execute_kw", args: [ODOO_CONFIG.db, uid, ODOO_CONFIG.password, "crm.lead", "read_group", [domainWon, ["day_close"], ["user_id"]]] }
+                });
+
+                // 11. FORECAST (En gestión: >0% y <100%)
+                const domainForecast = [...finalDomain, ['probability', '>', 0], ['probability', '<', 100]];
+                const reqForecast = axios.post(ODOO_CONFIG.url, {
+                    jsonrpc: "2.0", method: "call", id: 12,
+                    params: { service: "object", method: "execute_kw", args: [ODOO_CONFIG.db, uid, ODOO_CONFIG.password, "crm.lead", "read_group", [domainForecast, ["expected_revenue"], ["stage_id"]]] }
+                });
+
                 // EJECUTAR TODO
-                const [resFunnel, resChannel, resCareers, resAreas, resUni, resService] = await Promise.all([reqFunnel, reqChannel, reqCareers, reqAreas, reqUni, reqService]);
+                const [resFunnel, resChannel, resCareers, resAreas, resUni, resService, resNoEnrollment, resAvgResponse, resSalesAdvisor, resDaysClose, resForecast] = await Promise.all([reqFunnel, reqChannel, reqCareers, reqAreas, reqUni, reqService, reqNoEnrollment, reqAvgResponse, reqSalesAdvisor, reqDaysClose, reqForecast]);
 
 
                 // --- PROCESAMIENTO ---
@@ -100,6 +150,7 @@ export const useDashboardData = (filterType, salespersonId) => {
                     id: item.stage_id ? item.stage_id[1] : "Sin Etapa",
                     value: item.stage_id_count,
                     label: item.stage_id ? item.stage_id[1] : "Sin Etapa",
+                    revenue: item.expected_revenue || 0
                 })).sort((a, b) => b.value - a.value);
 
                 // B. Canal
@@ -115,10 +166,12 @@ export const useDashboardData = (filterType, salespersonId) => {
                 })).filter(i => i.carrera !== "DESCONOCIDO").sort((a, b) => a.value - b.value).slice(-10);
 
                 // D. Áreas (NUEVO)
-                const areaData = (resAreas.data.result || []).map(item => {
-                    const label = item.area ? (AREA_LABELS[item.area] || item.area) : "Sin Área";
-                    return { id: label, label: label, value: item.area_count };
-                }).filter(i => i.value > 0);
+                const areaData = (resAreas.data.result || [])
+                    .filter(item => item.area) // Excluir los que no tienen área definida
+                    .map(item => {
+                        const label = AREA_LABELS[item.area] || item.area;
+                        return { id: label, label: label, value: item.area_count };
+                    }).filter(i => i.value > 0);
 
                 // E. Universidades (NUEVO)
                 const universityData = (resUni.data.result || []).map(item => ({
@@ -130,7 +183,60 @@ export const useDashboardData = (filterType, salespersonId) => {
                 // Pasamos la data cruda, la procesaremos en el componente para sacar turnos
                 const serviceData = resService.data.result || [];
 
-                setData({ funnelData, pieData, careerData, areaData, universityData, serviceData });
+                // G. Motivo No Matrícula (NUEVO)
+                const noEnrollmentData = (resNoEnrollment.data.result || [])
+                    .filter(item => item.motivo_no_matricula && item.motivo_no_matricula !== 'ninguno') // Excluir nulos y 'ninguno'
+                    .map(item => {
+                        const key = item.motivo_no_matricula;
+                        const label = NO_MATRICULA_LABELS[key] || key;
+                        return { id: label, label: label, value: item.motivo_no_matricula_count };
+                    })
+                    .filter(i => i.value > 0);
+
+                // H. Promedio Respuesta (NUEVO)
+                const avgResponseRaw = resAvgResponse.data.result || [];
+                let totalWeighted = 0;
+                let totalCount = 0;
+                
+                // Calculamos el promedio ponderado (Promedio * Cantidad / Total)
+                avgResponseRaw.forEach(item => {
+                    const val = item.promedio_respuesta_handoff || 0;
+                    const count = item.user_id_count || 0; 
+                    totalWeighted += val * count;
+                    totalCount += count;
+                });
+                const avgResponseTime = totalCount > 0 ? (totalWeighted / totalCount) : 0;
+
+                // I. Ventas por Asesor
+                const salesByAdvisor = (resSalesAdvisor.data.result || []).map(item => ({
+                    advisor: item.user_id ? item.user_id[1] : "Sin Asignar",
+                    value: item.user_id_count
+                })).sort((a, b) => b.value - a.value);
+
+                // J. Ciclo de Venta (Promedio días cierre)
+                const daysCloseRaw = resDaysClose.data.result || [];
+                let totalDaysWeighted = 0;
+                let totalWonCount = 0;
+                daysCloseRaw.forEach(item => {
+                    const val = item.day_close || 0;
+                    const count = item.user_id_count || 0;
+                    totalDaysWeighted += val * count;
+                    totalWonCount += count;
+                });
+                const avgDaysToClose = totalWonCount > 0 ? (totalDaysWeighted / totalWonCount) : 0;
+
+                // K. Forecast (Proyección)
+                const forecastRaw = resForecast.data.result || [];
+                const forecastRevenue = forecastRaw.reduce((acc, item) => acc + (item.expected_revenue || 0), 0);
+
+                // L. Marketing Data (Solo Redes Sociales / Meta)
+                // Filtramos explícitamente solo Messenger, Facebook e Instagram
+                // Excluyendo: WhatsApp, Manual (Llamadas) y Web
+                const marketingData = pieData.filter(item => 
+                    ['Messenger', 'Facebook', 'Instagram'].includes(item.label)
+                );
+
+                setData({ funnelData, pieData, careerData, areaData, universityData, serviceData, noEnrollmentData, avgResponseTime, salesByAdvisor, avgDaysToClose, forecastRevenue, marketingData });
 
             } catch (e) {
                 console.error("Error dashboard:", e);
@@ -140,7 +246,7 @@ export const useDashboardData = (filterType, salespersonId) => {
             }
         };
         load();
-    }, [filterType, salespersonId]);
+    }, [filterType, salespersonId, customDays]);
 
     return { data, loading, error };
 };

@@ -1,6 +1,6 @@
 import React from 'react';
 
-const KpiRow = ({ funnelData }) => {
+const KpiRow = ({ funnelData, avgResponseTime = 0, avgDaysToClose = 0, forecastRevenue = 0 }) => {
     if (!funnelData) return null;
 
     // --- 1. LÓGICA DE CÁLCULO ---
@@ -25,6 +25,7 @@ const KpiRow = ({ funnelData }) => {
         item.label.toLowerCase().includes('won')
     );
     const countMatriculados = wonStageItem ? wonStageItem.value : 0;
+    const revenueMatriculados = wonStageItem ? wonStageItem.revenue : 0; // <--- DINERO
 
     // E. Tasa de Conversión (Eficiencia)
     const conversionRate = interesadosReales > 0 
@@ -37,6 +38,25 @@ const KpiRow = ({ funnelData }) => {
     const pctGestion = totalLeads > 0 ? ((interesadosReales / totalLeads) * 100).toFixed(0) : 0;
     const pctMatriculados = totalLeads > 0 ? ((countMatriculados / totalLeads) * 100).toFixed(0) : 0;
 
+    // G. Ticket Promedio (Ingreso / Cantidad)
+    const ticketPromedio = countMatriculados > 0 ? (revenueMatriculados / countMatriculados) : 0;
+
+    // Helper para formato moneda (Soles PEN)
+    const formatMoney = (amount) => {
+        return new Intl.NumberFormat('es-PE', { style: 'currency', currency: 'PEN' }).format(amount);
+    };
+
+    // Helper para formato horas
+    const formatearHoras = (valorDecimal) => {
+        if (!valorDecimal) return "0 min";
+        const horas = Math.floor(valorDecimal);
+        const minutos = Math.round((valorDecimal - horas) * 60);
+        if (horas > 0) {
+            return `${horas}h ${minutos}m`;
+        } else {
+            return `${minutos} min`;
+        }
+    };
 
     // --- 2. ESTILOS ---
     const containerStyle = {
@@ -101,6 +121,43 @@ const KpiRow = ({ funnelData }) => {
                 <p style={valueStyle}>{conversionRate}%</p>
                 <p style={subStyle}>De gestión a matrícula</p>
             </div>
+
+            {/* CARD 5: INGRESOS (NUEVO) */}
+            <div style={cardStyle('#e74c3c')}>
+                <h4 style={titleStyle}>Ingresos Estimados</h4>
+                <p style={valueStyle} title={revenueMatriculados}>
+                    {formatMoney(revenueMatriculados)}
+                </p>
+                <p style={subStyle}>Valor de matrículas cerradas</p>
+            </div>
+
+            {/* CARD 6: TIEMPO RESPUESTA (NUEVO) */}
+            <div style={cardStyle('#1abc9c')}>
+                <h4 style={titleStyle}>Tiempo Respuesta</h4>
+                <p style={valueStyle}>
+                    {formatearHoras(avgResponseTime)}
+                </p>
+                <p style={subStyle}>Promedio atención</p>
+            </div>
+
+            {/* CARD 7: TICKET PROMEDIO (NUEVO) */}
+            <div style={cardStyle('#8e44ad')}>
+                <h4 style={titleStyle}>Ticket Promedio</h4>
+                <p style={valueStyle}>
+                    {formatMoney(ticketPromedio)}
+                </p>
+                <p style={subStyle}>Ingreso por alumno</p>
+            </div>
+
+            {/* CARD 8: CICLO DE VENTA (NUEVO) */}
+            <div style={cardStyle('#2c3e50')}>
+                <h4 style={titleStyle}>Ciclo de Venta</h4>
+                <p style={valueStyle}>
+                    {avgDaysToClose.toFixed(1)} <span style={{fontSize: '16px'}}>días</span>
+                </p>
+                <p style={subStyle}>Tiempo cierre promedio</p>
+            </div>
+
 
         </div>
     );

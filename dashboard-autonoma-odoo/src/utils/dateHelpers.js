@@ -1,6 +1,6 @@
 // src/utils/dateHelpers.js
 
-export const getOdooDomain = (filterType) => {
+export const getOdooDomain = (filterType, customDays = 0) => {
     const today = new Date();
     let startDate = new Date();
 
@@ -16,6 +16,13 @@ export const getOdooDomain = (filterType) => {
             break;
         case 'year':
             startDate.setFullYear(today.getFullYear() - 1);
+            break;
+        case 'custom': // Lógica para días personalizados
+            if (customDays && customDays > 0) {
+                startDate.setDate(today.getDate() - parseInt(customDays));
+            } else {
+                return []; // Si no pone número, mostramos todo (o podrías poner default 1)
+            }
             break;
         default:
             return []; // Si es "todo", no filtramos nada

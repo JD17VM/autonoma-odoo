@@ -1,36 +1,21 @@
-// src/components/SourcePie.jsx
+// src/components/NoEnrollmentPie.jsx
 import React from 'react';
 import { ResponsivePie } from '@nivo/pie';
 
-const SourcePie = ({ data, useChannelColors = false }) => {
+const NoEnrollmentPie = ({ data }) => {
     // Si no hay datos, mostramos mensaje
-    if (!data || data.length === 0) return <div style={{height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#aaa'}}>Sin datos de origen</div>;
-
-    // Configuración de Colores Personalizados (Marcas)
-    const getCustomColor = (bar) => {
-        const id = bar.id; // El ID es el nombre del canal (ej: "Instagram")
-        
-        if (id === 'Instagram') return '#e130b5ff';        // Rosado Instagram
-        if (id === 'Facebook') return '#1877F2';         // Azul Facebook
-        if (id === 'Messenger') return '#00B2FF';        // Celeste Messenger
-        if (id === 'Whatsapp Academia') return '#128C7E'; // Verde Azulado (Teal - WhatsApp Business)
-        if (id === 'Whatsapp Colegio') return '#A4C639';  // Verde Limón (Diferenciado)
-        if (id === 'Manual') return '#F97316';           // Naranja Intenso (Llamadas/Manual)
-        if (id === 'Web / Otros') return '#64748B';      // Gris Azulado (Genérico)
-        
-        return '#94a3b8'; // Color por defecto si aparece algo nuevo
-    };
+    if (!data || data.length === 0) return <div style={{height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#aaa'}}>Sin motivos registrados</div>;
 
     return (
         <div style={{ height: 350 }}>
             <ResponsivePie
                 data={data}
                 margin={{ top: 40, right: 80, bottom: 80, left: 80 }}
-                innerRadius={0.5} // Esto lo hace "Dona". Pon 0 para que sea "Tarta completa"
+                innerRadius={0.5} // Estilo Dona, igual que el de Canales
                 padAngle={0.7}
                 cornerRadius={3}
                 activeOuterRadiusOffset={8}
-                colors={useChannelColors ? getCustomColor : { scheme: 'nivo' }}
+                colors={{ scheme: 'nivo' }} // Mismo esquema de colores para consistencia
                 borderWidth={1}
                 borderColor={{ from: 'color', modifiers: [['darker', 0.2]] }}
                 arcLinkLabelsSkipAngle={10}
@@ -61,4 +46,4 @@ const SourcePie = ({ data, useChannelColors = false }) => {
     );
 };
 
-export default SourcePie;
+export default NoEnrollmentPie;
