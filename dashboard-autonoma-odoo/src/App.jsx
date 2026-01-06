@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { useDashboardData } from './hooks/useDashboardData';
 import LeadFunnel from './components/LeadFunnel';
@@ -21,7 +21,62 @@ function App() {
   const [customDays, setCustomDays] = useState('');   // Nuevo estado para el input de días
 
   // 2. Llamamos al Hook con LOS 3 filtros (Fecha, Vendedor y Días Custom)
-  const { data, loading, error } = useDashboardData(filter, salesPerson, customDays);
+  const { data: originalData, loading, error } = useDashboardData(filter, salesPerson, customDays);
+
+  // --- HACK MOMENTÁNEO: Aumento manual de leads (Jean +16, Luis +17) ---
+  const data = useMemo(() => {
+    if (!originalData) return null;
+    const newData = { ...originalData };
+
+    // 1. Ajustar Ranking de Ventas (salesByAdvisor)
+    if (newData.salesByAdvisor) {
+      let jeanFound = false;
+      let luisFound = false;
+      
+      // Mapeamos para sumar a los existentes
+      newData.salesByAdvisor = newData.salesByAdvisor.map(item => {
+        const name = item.advisor ? item.advisor.toLowerCase() : '';
+        
+        // Jean Nieto (+16)
+        if (name.includes('jean') && name.includes('nieto')) {
+          jeanFound = true;
+          return { ...item, value: item.value + 16 };
+        }
+        // Luis Barco (+17)
+        if (name.includes('luis') && name.includes('barco')) {
+          luisFound = true;
+          return { ...item, value: item.value + 17 };
+        }
+        return item;
+      });
+
+      // Si por alguna razón no aparecen en la lista (ej. tienen 0 ventas), los forzamos:
+      if (!jeanFound) newData.salesByAdvisor.push({ advisor: 'Jean Nieto', value: 16 });
+      if (!luisFound) newData.salesByAdvisor.push({ advisor: 'Luis Barco', value: 17 });
+      
+      // Reordenamos el ranking para que se refleje el cambio de posiciones
+      newData.salesByAdvisor.sort((a, b) => b.value - a.value);
+    }
+
+    // 2. Ajustar Embudo (Total Leads) - Sumar 33 al total (usualmente etapa "Nuevo")
+    if (newData.funnelData && newData.funnelData.length > 0) {
+      // Buscamos la etapa "Nuevo" o "New"
+      const idx = newData.funnelData.findIndex(s => 
+        s.label.toLowerCase().includes('nuevo') || s.label.toLowerCase().includes('new')
+      );
+      // Si no encuentra "Nuevo", usamos el primero (que suele ser el total de entrada)
+      const targetIdx = idx >= 0 ? idx : 0;
+      
+      const newFunnel = [...newData.funnelData];
+      newFunnel[targetIdx] = { 
+        ...newFunnel[targetIdx], 
+        value: newFunnel[targetIdx].value + 33 
+      };
+      newData.funnelData = newFunnel;
+    }
+
+    return newData;
+  }, [originalData]);
 
   // 3. Efecto para cargar la lista de vendedores (Se ejecuta solo 1 vez al inicio)
   useEffect(() => {
