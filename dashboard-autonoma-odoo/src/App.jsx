@@ -199,6 +199,37 @@ function App() {
                 <CareerBar data={data.careerData} />
             </div>
 
+            {/* 4. TABLA DE VERIFICACIÓN (NUEVO) */}
+            <div style={{ gridColumn: '1 / -1', background: '#fff', padding: '20px', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
+                <h3 style={{ marginTop: 0, color: '#444', borderBottom: '1px solid #eee', paddingBottom: '10px' }}>
+                    🔍 Verificación de Datos (Todos los Matriculados)
+                </h3>
+                <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                        <thead>
+                            <tr style={{ background: '#f8f9fa', textAlign: 'left', color: '#666' }}>
+                                <th style={{ padding: '12px', borderBottom: '2px solid #eee' }}>Lead / Estudiante</th>
+                                <th style={{ padding: '12px', borderBottom: '2px solid #eee' }}>Fecha Creación (Escribió)</th>
+                                <th style={{ padding: '12px', borderBottom: '2px solid #eee' }}>Fecha Cierre (Matriculó)</th>
+                                <th style={{ padding: '12px', borderBottom: '2px solid #eee' }}>Días Ciclo</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {data.leadsVerificationData && data.leadsVerificationData.map((lead, idx) => (
+                                <tr key={idx} style={{ borderBottom: '1px solid #f0f0f0' }}>
+                                    <td style={{ padding: '10px' }}>{lead.name}</td>
+                                    <td style={{ padding: '10px' }}>{lead.create_date}</td>
+                                    <td style={{ padding: '10px' }}>{lead.date_closed || '-'}</td>
+                                    <td style={{ padding: '10px', fontWeight: 'bold', color: '#007bff' }}>
+                                        {lead.day_close ? Number(lead.day_close).toFixed(2) : '0.00'}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
         </div>
       )}
     </div>

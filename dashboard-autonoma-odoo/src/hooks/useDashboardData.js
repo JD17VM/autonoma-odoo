@@ -43,7 +43,8 @@ export const useDashboardData = (filterType, salespersonId, customDays) => {
         salesByAdvisor: [],   // <--- NUEVO (Ventas por Asesor)
         avgDaysToClose: 0,    // <--- NUEVO (Ciclo de Venta)
         forecastRevenue: 0,   // <--- NUEVO (Proyección)
-        marketingData: []     // <--- NUEVO (Solo Redes Sociales)
+        marketingData: [],    // <--- NUEVO (Solo Redes Sociales)
+        leadsVerificationData: [] // <--- NUEVO (Datos para verificar)
     });
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -139,8 +140,25 @@ export const useDashboardData = (filterType, salespersonId, customDays) => {
                     params: { service: "object", method: "execute_kw", args: [ODOO_CONFIG.db, uid, ODOO_CONFIG.password, "crm.lead", "read_group", [domainForecast, ["expected_revenue"], ["stage_id"]]] }
                 });
 
+                // 12. VERIFICACIÓN (Datos Crudos para Tabla)
+                // Traemos TODOS los ganados para verificar fechas
+                const reqVerification = axios.post(ODOO_CONFIG.url, {
+                    jsonrpc: "2.0", method: "call", id: 13,
+                    params: { 
+                        service: "object", 
+                        method: "execute_kw", 
+                        args: [
+                            ODOO_CONFIG.db, uid, ODOO_CONFIG.password, 
+                            "crm.lead", 
+                            "search_read", 
+                            [[...finalDomain, ['probability', '=', 100]]], 
+                            { fields: ["name", "create_date", "date_closed", "day_close"], order: "date_closed desc" } 
+                        ] 
+                    }
+                });
+
                 // EJECUTAR TODO
-                const [resFunnel, resChannel, resCareers, resAreas, resUni, resService, resNoEnrollment, resAvgResponse, resSalesAdvisor, resDaysClose, resForecast] = await Promise.all([reqFunnel, reqChannel, reqCareers, reqAreas, reqUni, reqService, reqNoEnrollment, reqAvgResponse, reqSalesAdvisor, reqDaysClose, reqForecast]);
+                const [resFunnel, resChannel, resCareers, resAreas, resUni, resService, resNoEnrollment, resAvgResponse, resSalesAdvisor, resDaysClose, resForecast, resVerification] = await Promise.all([reqFunnel, reqChannel, reqCareers, reqAreas, reqUni, reqService, reqNoEnrollment, reqAvgResponse, reqSalesAdvisor, reqDaysClose, reqForecast, reqVerification]);
 
 
                 // --- PROCESAMIENTO ---
@@ -202,7 +220,7 @@ export const useDashboardData = (filterType, salespersonId, customDays) => {
                 avgResponseRaw.forEach(item => {
                     const val = item.promedio_respuesta_handoff || 0;
                     const count = item.user_id_count || 0; 
-                    totalWeighted += val * count;
+                    totalWeighted += val;
                     totalCount += count;
                 });
                 const avgResponseTime = totalCount > 0 ? (totalWeighted / totalCount) : 0;
@@ -220,7 +238,7 @@ export const useDashboardData = (filterType, salespersonId, customDays) => {
                 daysCloseRaw.forEach(item => {
                     const val = item.day_close || 0;
                     const count = item.user_id_count || 0;
-                    totalDaysWeighted += val * count;
+                    totalDaysWeighted += val;
                     totalWonCount += count;
                 });
                 const avgDaysToClose = totalWonCount > 0 ? (totalDaysWeighted / totalWonCount) : 0;
@@ -236,7 +254,10 @@ export const useDashboardData = (filterType, salespersonId, customDays) => {
                     ['Messenger', 'Facebook', 'Instagram'].includes(item.label)
                 );
 
-                setData({ funnelData, pieData, careerData, areaData, universityData, serviceData, noEnrollmentData, avgResponseTime, salesByAdvisor, avgDaysToClose, forecastRevenue, marketingData });
+                // M. Datos de Verificación
+                const leadsVerificationData = resVerification.data.result || [];
+
+                setData({ funnelData, pieData, careerData, areaData, universityData, serviceData, noEnrollmentData, avgResponseTime, salesByAdvisor, avgDaysToClose, forecastRevenue, marketingData, leadsVerificationData });
 
             } catch (e) {
                 console.error("Error dashboard:", e);
