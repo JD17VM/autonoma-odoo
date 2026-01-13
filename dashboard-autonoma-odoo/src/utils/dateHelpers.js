@@ -1,8 +1,9 @@
 // src/utils/dateHelpers.js
 
-export const getOdooDomain = (filterType, customDays = 0) => {
+// Función auxiliar para obtener la fecha de inicio (objeto Date)
+export const getStartDate = (filterType, customDays = 0) => {
     const today = new Date();
-    let startDate = new Date();
+    let startDate = new Date(today); // Clonamos para no mutar today
 
     switch (filterType) {
         case 'week':
@@ -21,12 +22,22 @@ export const getOdooDomain = (filterType, customDays = 0) => {
             if (customDays && customDays > 0) {
                 startDate.setDate(today.getDate() - parseInt(customDays));
             } else {
-                return []; // Si no pone número, mostramos todo (o podrías poner default 1)
+                return null; // Sin filtro
             }
             break;
         default:
-            return []; // Si es "todo", no filtramos nada
+            return null; // Si es "todo", no filtramos nada
     }
+    
+    // Reseteamos horas a 00:00:00 para comparar correctamente
+    startDate.setHours(0, 0, 0, 0);
+    return startDate;
+};
+
+export const getOdooDomain = (filterType, customDays = 0) => {
+    const startDate = getStartDate(filterType, customDays);
+    
+    if (!startDate) return [];
 
     // Formatear a YYYY-MM-DD para Odoo
     const formattedDate = startDate.toISOString().split('T')[0];

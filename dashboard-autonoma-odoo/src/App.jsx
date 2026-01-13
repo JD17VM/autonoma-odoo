@@ -8,15 +8,22 @@ import KpiRow from './components/KpiRow';
 import ProductMix from './components/ProductMix';
 import NoEnrollmentPie from './components/NoEnrollmentPie';
 import AdvisorBar from './components/AdvisorBar';
+import PhoneStatsRow from './components/PhoneStatsRow'; // <--- NUEVO COMPONENTE
 
 // Asegúrate de que esta ruta sea correcta según tu proyecto, 
 // o define ODOO_CONFIG aquí mismo si prefieres.
 import { ODOO_CONFIG } from './config/odoo.config'; 
 
+// IMPORTAR DATOS Y HELPERS DE LLAMADAS
+import { XML_VICTOR_LIRA, XML_SAN_JOSE, XML_SAN_PEDRO } from './utils/callLogs';
+import { parseAndFilterLogs, calculateCallStats } from './utils/callLogHelpers';
+import { getStartDate } from './utils/dateHelpers';
+
 function App() {
   // 1. Estados
   const [filter, setFilter] = useState('year'); 
   const [salesPerson, setSalesPerson] = useState(''); // '' significa "Todos"
+  const [locationFilter, setLocationFilter] = useState('all'); // <--- NUEVO: Filtro de Sede
   const [usersList, setUsersList] = useState([]);     // Aquí guardaremos la lista de vendedores
   const [customDays, setCustomDays] = useState('');   // Nuevo estado para el input de días
 
@@ -77,6 +84,36 @@ function App() {
 
     return newData;
   }, [originalData]);
+
+  // --- LÓGICA DE LLAMADAS (MEMOIZADA) ---
+  const phoneStats = useMemo(() => {
+    // 1. Obtener fecha de inicio según el filtro actual (usando el helper actualizado)
+    const startDate = getStartDate(filter, customDays);
+
+    // 2. Juntar los XMLs según la sede seleccionada
+    let logsToProcess = [];
+    
+    // Por ahora solo Victor Lira tiene datos reales importados
+    if (locationFilter === 'all' || locationFilter === 'victor_lira') {
+        logsToProcess = [...logsToProcess, ...parseAndFilterLogs(XML_VICTOR_LIRA, startDate)];
+    }
+    if (locationFilter === 'all' || locationFilter === 'san_jose') {
+        logsToProcess = [...logsToProcess, ...parseAndFilterLogs(XML_SAN_JOSE, startDate)];
+    }
+    if (locationFilter === 'all' || locationFilter === 'san_pedro') {
+        logsToProcess = [...logsToProcess, ...parseAndFilterLogs(XML_SAN_PEDRO, startDate)];
+    }
+
+    // 3. Calcular Estadísticas
+    return calculateCallStats(logsToProcess);
+  }, [filter, customDays, locationFilter]);
+
+  const locationLabels = {
+      'all': 'Todas las Sedes',
+      'san_jose': 'San José',
+      'victor_lira': 'Víctor Lira',
+      'san_pedro': 'San Pedro'
+  };
 
   // 3. Efecto para cargar la lista de vendedores (Se ejecuta solo 1 vez al inicio)
   useEffect(() => {
@@ -145,6 +182,31 @@ function App() {
                 <option key={user.id} value={user.id}>👤 {user.name}</option>
             ))}
         </select>
+        <div style={{ display: 'flex', gap: '10px' }}>
+            {/* SELECTOR DE SEDE (LLAMADAS) */}
+            <select 
+                style={selectStyle} 
+                value={locationFilter} 
+                onChange={(e) => setLocationFilter(e.target.value)}
+            >
+                <option value="all">📍 Todas las Sedes</option>
+                <option value="victor_lira">📍 Víctor Lira</option>
+                <option value="san_jose">📍 San José</option>
+                <option value="san_pedro">📍 San Pedro</option>
+            </select>
+
+            {/* SELECTOR DE VENDEDOR */}
+            <select 
+                style={selectStyle} 
+                value={salesPerson} 
+                onChange={(e) => setSalesPerson(e.target.value)}
+            >
+                <option value="">🏢 Todos los Asesores</option>
+                {usersList.map(user => (
+                    <option key={user.id} value={user.id}>👤 {user.name}</option>
+                ))}
+            </select>
+        </div>
       </div>
 
       {/* FILTROS DE FECHA */}
@@ -186,6 +248,8 @@ function App() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '20px' }}>
             
 
+            {/* 0. FILA DE ESTADÍSTICAS TELEFÓNICAS (NUEVO) */}
+            <PhoneStatsRow stats={phoneStats} locationName={locationLabels[locationFilter]} />
             
 
             {/* 1. FILA DE KPIs (NUEVO) */}
