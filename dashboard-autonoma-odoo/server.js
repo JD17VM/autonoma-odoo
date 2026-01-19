@@ -27,9 +27,9 @@ app.use('/odoo-api', createProxyMiddleware({
 // --- SEGURIDAD: CONTROL DE ACCESO ---
 // 1. Entrada autorizada (POST): Esta ruta recibe el clic desde el botón de Odoo
 app.post('/', (req, res) => {
-    // Creamos una cookie manual "odoo_auth" que dura 24 horas
+    // Creamos una cookie manual "odoo_auth" que dura 10 minutos
     // Esto actúa como una "pulsera" para identificar que viene de un sitio seguro
-    res.setHeader('Set-Cookie', 'odoo_auth=true; Path=/; HttpOnly; Max-Age=86400');
+    res.setHeader('Set-Cookie', 'odoo_auth=true; Path=/; HttpOnly; Max-Age=600');
     // Redirigimos al usuario a la vista normal (GET) para que cargue la app
     res.redirect('/');
 });
