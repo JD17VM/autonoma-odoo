@@ -29,7 +29,7 @@ const NO_MATRICULA_LABELS = {
     'ninguno': 'Ninguno'
 };
 
-export const useDashboardData = (filterType, salespersonId, customDays) => {
+export const useDashboardData = (filterType, salespersonId, customDays, locationFilter) => {
     // AHORA TENEMOS MÁS DATASETS
     const [data, setData] = useState({ 
         funnelData: [], 
@@ -44,7 +44,8 @@ export const useDashboardData = (filterType, salespersonId, customDays) => {
         avgDaysToClose: 0,    // <--- NUEVO (Ciclo de Venta)
         forecastRevenue: 0,   // <--- NUEVO (Proyección)
         marketingData: [],    // <--- NUEVO (Solo Redes Sociales)
-        leadsVerificationData: [] // <--- NUEVO (Datos para verificar)
+        leadsVerificationData: [], // <--- NUEVO (Datos para verificar)
+        callStats: { total: 0, answered: 0, missed: 0 } // <--- NUEVO (Estadísticas Reales de Llamadas)
     });
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -157,8 +158,43 @@ export const useDashboardData = (filterType, salespersonId, customDays) => {
                     }
                 });
 
+                // 13. ESTADÍSTICAS DE LLAMADAS (NUEVO - Basado en tu código Python)
+                // Traemos la suma de los contadores reales
+                
+                // A. Preparamos el dominio específico para llamadas (Filtrar por Sede/Canal)
+                // 1. Usamos dateDomain: Esto asegura que si filtras "Semana", Odoo solo traiga leads de esa semana.
+                //    (Usamos dateDomain en lugar de finalDomain para IGNORAR el filtro de vendedor en las llamadas globales)
+                let callStatsDomain = [...dateDomain];
+
+                // 2. Filtro de Seguridad: Forzamos que Odoo solo cuente desde el 13 de Enero 
+                //    (Para no mezclar con datos antiguos que ya están en los XML)
+                callStatsDomain.push(['create_date', '>=', '2025-01-13']);
+
+                const LOCATION_MAP = {
+                    'victor_lira': 'llamada_1', // Telefono 1
+                    'san_jose': 'llamada_2',    // Telefono 2
+                    'san_pedro': 'llamada_3'    // Telefono 3
+                };
+                if (locationFilter && LOCATION_MAP[locationFilter]) {
+                    callStatsDomain.push(['canal', '=', LOCATION_MAP[locationFilter]]);
+                }
+
+                const reqCallStats = axios.post(ODOO_CONFIG.url, {
+                    jsonrpc: "2.0", method: "call", id: 14,
+                    params: { 
+                        service: "object", 
+                        method: "execute_kw", 
+                        args: [
+                            ODOO_CONFIG.db, uid, ODOO_CONFIG.password, 
+                            "crm.lead", 
+                            "read_group", 
+                            [callStatsDomain, ["conteo_llamadas", "total_llamadas_contestadas", "total_llamadas_no_contestadas"], []] 
+                        ] 
+                    }
+                });
+
                 // EJECUTAR TODO
-                const [resFunnel, resChannel, resCareers, resAreas, resUni, resService, resNoEnrollment, resAvgResponse, resSalesAdvisor, resDaysClose, resForecast, resVerification] = await Promise.all([reqFunnel, reqChannel, reqCareers, reqAreas, reqUni, reqService, reqNoEnrollment, reqAvgResponse, reqSalesAdvisor, reqDaysClose, reqForecast, reqVerification]);
+                const [resFunnel, resChannel, resCareers, resAreas, resUni, resService, resNoEnrollment, resAvgResponse, resSalesAdvisor, resDaysClose, resForecast, resVerification, resCallStats] = await Promise.all([reqFunnel, reqChannel, reqCareers, reqAreas, reqUni, reqService, reqNoEnrollment, reqAvgResponse, reqSalesAdvisor, reqDaysClose, reqForecast, reqVerification, reqCallStats]);
 
 
                 // --- PROCESAMIENTO ---
@@ -257,7 +293,15 @@ export const useDashboardData = (filterType, salespersonId, customDays) => {
                 // M. Datos de Verificación
                 const leadsVerificationData = resVerification.data.result || [];
 
-                setData({ funnelData, pieData, careerData, areaData, universityData, serviceData, noEnrollmentData, avgResponseTime, salesByAdvisor, avgDaysToClose, forecastRevenue, marketingData, leadsVerificationData });
+                // N. Estadísticas de Llamadas (NUEVO)
+                const callStatsRaw = resCallStats.data.result || [];
+                const callStats = {
+                    total: callStatsRaw.length > 0 ? (callStatsRaw[0].conteo_llamadas || 0) : 0,
+                    answered: callStatsRaw.length > 0 ? (callStatsRaw[0].total_llamadas_contestadas || 0) : 0,
+                    missed: callStatsRaw.length > 0 ? (callStatsRaw[0].total_llamadas_no_contestadas || 0) : 0
+                };
+
+                setData({ funnelData, pieData, careerData, areaData, universityData, serviceData, noEnrollmentData, avgResponseTime, salesByAdvisor, avgDaysToClose, forecastRevenue, marketingData, leadsVerificationData, callStats });
 
             } catch (e) {
                 console.error("Error dashboard:", e);
@@ -267,7 +311,7 @@ export const useDashboardData = (filterType, salespersonId, customDays) => {
             }
         };
         load();
-    }, [filterType, salespersonId, customDays]);
+    }, [filterType, salespersonId, customDays, locationFilter]); // <--- Agregamos locationFilter a las dependencias
 
     return { data, loading, error };
 };

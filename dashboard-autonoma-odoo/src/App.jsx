@@ -27,63 +27,11 @@ function App() {
   const [usersList, setUsersList] = useState([]);     // Aquí guardaremos la lista de vendedores
   const [customDays, setCustomDays] = useState('');   // Nuevo estado para el input de días
 
-  // 2. Llamamos al Hook con LOS 3 filtros (Fecha, Vendedor y Días Custom)
-  const { data: originalData, loading, error } = useDashboardData(filter, salesPerson, customDays);
+  // 2. Llamamos al Hook con LOS 4 filtros (Fecha, Vendedor, Días Custom y SEDE)
+  const { data: originalData, loading, error } = useDashboardData(filter, salesPerson, customDays, locationFilter);
 
-  // --- HACK MOMENTÁNEO: Aumento manual de leads (Jean +16, Luis +17) ---
-  const data = useMemo(() => {
-    if (!originalData) return null;
-    const newData = { ...originalData };
-
-    // 1. Ajustar Ranking de Ventas (salesByAdvisor)
-    if (newData.salesByAdvisor) {
-      let jeanFound = false;
-      let luisFound = false;
-      
-      // Mapeamos para sumar a los existentes
-      newData.salesByAdvisor = newData.salesByAdvisor.map(item => {
-        const name = item.advisor ? item.advisor.toLowerCase() : '';
-        
-        // Jean Nieto (+16)
-        if (name.includes('jean') && name.includes('nieto')) {
-          jeanFound = true;
-          return { ...item, value: item.value + 16 };
-        }
-        // Luis Barco (+17)
-        if (name.includes('luis') && name.includes('barco')) {
-          luisFound = true;
-          return { ...item, value: item.value + 17 };
-        }
-        return item;
-      });
-
-      // Si por alguna razón no aparecen en la lista (ej. tienen 0 ventas), los forzamos:
-      if (!jeanFound) newData.salesByAdvisor.push({ advisor: 'Jean Nieto', value: 16 });
-      if (!luisFound) newData.salesByAdvisor.push({ advisor: 'Luis Barco', value: 17 });
-      
-      // Reordenamos el ranking para que se refleje el cambio de posiciones
-      newData.salesByAdvisor.sort((a, b) => b.value - a.value);
-    }
-
-    // 2. Ajustar Embudo (Total Leads) - Sumar 33 al total (usualmente etapa "Nuevo")
-    if (newData.funnelData && newData.funnelData.length > 0) {
-      // Buscamos la etapa "Nuevo" o "New"
-      const idx = newData.funnelData.findIndex(s => 
-        s.label.toLowerCase().includes('nuevo') || s.label.toLowerCase().includes('new')
-      );
-      // Si no encuentra "Nuevo", usamos el primero (que suele ser el total de entrada)
-      const targetIdx = idx >= 0 ? idx : 0;
-      
-      const newFunnel = [...newData.funnelData];
-      newFunnel[targetIdx] = { 
-        ...newFunnel[targetIdx], 
-        value: newFunnel[targetIdx].value + 33 
-      };
-      newData.funnelData = newFunnel;
-    }
-
-    return newData;
-  }, [originalData]);
+  // Usamos directamente los datos reales de Odoo
+  const data = originalData;
 
   // --- LÓGICA DE LLAMADAS (MEMOIZADA) ---
   const phoneStats = useMemo(() => {
@@ -104,9 +52,28 @@ function App() {
         logsToProcess = [...logsToProcess, ...parseAndFilterLogs(XML_SAN_PEDRO, startDate)];
     }
 
-    // 3. Calcular Estadísticas
-    return calculateCallStats(logsToProcess);
-  }, [filter, customDays, locationFilter]);
+    // 3. Calcular Estadísticas base (desde XML)
+    const xmlStats = calculateCallStats(logsToProcess);
+
+    // 4. INTEGRACIÓN ODOO REAL: Usamos los contadores que vienen de tu código Python
+    // (conteo_llamadas, total_llamadas_contestadas, total_llamadas_no_contestadas)
+    let odooStats = { total: 0, answered: 0, missed: 0 };
+    if (originalData && originalData.callStats) {
+        odooStats = originalData.callStats;
+    }
+
+    // Retornamos la suma combinada (XML Histórico + Odoo Real)
+    // Mapeo:
+    // - Realizadas = XML Outgoing + Odoo conteo_llamadas (Total Intentos)
+    // - Contestadas = XML Incoming + Odoo total_llamadas_contestadas
+    // - No Contestadas = XML Missed + Odoo total_llamadas_no_contestadas
+    return { 
+        ...xmlStats, 
+        incoming: xmlStats.incoming + odooStats.answered,
+        outgoing: xmlStats.outgoing + odooStats.total, 
+        missed: xmlStats.missed + odooStats.missed
+    };
+  }, [filter, customDays, locationFilter, originalData]);
 
   const locationLabels = {
       'all': 'Todas las Sedes',
@@ -171,30 +138,7 @@ function App() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', background: '#fff', padding: '20px', borderRadius: '12px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
         <h1 style={{ margin: 0, fontSize: '24px', color: '#1a1a1a' }}>📊 Dashboard Comercial - Esparta</h1>
         
-        {/* AQUÍ ESTÁ EL SELECTOR NUEVO */}
-        <select 
-            style={selectStyle} 
-            value={salesPerson} 
-            onChange={(e) => setSalesPerson(e.target.value)}
-        >
-            <option value="">🏢 Todos los Asesores</option>
-            {usersList.map(user => (
-                <option key={user.id} value={user.id}>👤 {user.name}</option>
-            ))}
-        </select>
         <div style={{ display: 'flex', gap: '10px' }}>
-            {/* SELECTOR DE SEDE (LLAMADAS) */}
-            <select 
-                style={selectStyle} 
-                value={locationFilter} 
-                onChange={(e) => setLocationFilter(e.target.value)}
-            >
-                <option value="all">📍 Todas las Sedes</option>
-                <option value="victor_lira">📍 Víctor Lira</option>
-                <option value="san_jose">📍 San José</option>
-                <option value="san_pedro">📍 San Pedro</option>
-            </select>
-
             {/* SELECTOR DE VENDEDOR */}
             <select 
                 style={selectStyle} 
@@ -249,7 +193,22 @@ function App() {
             
 
             {/* 0. FILA DE ESTADÍSTICAS TELEFÓNICAS (NUEVO) */}
-            <PhoneStatsRow stats={phoneStats} locationName={locationLabels[locationFilter]} />
+            <PhoneStatsRow 
+                stats={phoneStats} 
+                locationName={locationLabels[locationFilter]} 
+                filterSlot={
+                    <select 
+                        style={{...selectStyle, minWidth: '150px', padding: '6px 10px', fontSize: '13px', borderColor: '#007bff', color: '#007bff', fontWeight: 'bold'}} 
+                        value={locationFilter} 
+                        onChange={(e) => setLocationFilter(e.target.value)}
+                    >
+                        <option value="all">📍 Todas las Sedes</option>
+                        <option value="victor_lira">📍 Víctor Lira</option>
+                        <option value="san_jose">📍 San José</option>
+                        <option value="san_pedro">📍 San Pedro</option>
+                    </select>
+                }
+            />
             
 
             {/* 1. FILA DE KPIs (NUEVO) */}

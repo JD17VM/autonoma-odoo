@@ -21,17 +21,20 @@ const Card = ({ title, value, color, icon }) => (
     </div>
 );
 
-const PhoneStatsRow = ({ stats, locationName }) => {
+const PhoneStatsRow = ({ stats, locationName, filterSlot }) => {
     if (!stats) return null;
 
     return (
         <div style={{ gridColumn: '1 / -1', marginBottom: '10px' }}>
-            <h3 style={{ marginTop: 0, color: '#444', fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                📞 Gestión Telefónica - {locationName}
-            </h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                <h3 style={{ margin: 0, color: '#444', fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    📞 Gestión Telefónica - {locationName}
+                </h3>
+                {filterSlot && <div>{filterSlot}</div>}
+            </div>
             <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap' }}>
                 <Card title="Realizadas" value={stats.outgoing} color="#007bff" icon="↗️" />
-                <Card title="Recibidas" value={stats.incoming} color="#28a745" icon="↙️" />
+                <Card title="Contestadas" value={stats.incoming} color="#28a745" icon="↙️" />
                 <Card title="No Contestadas" value={stats.missed} color="#dc3545" icon="❌" />
                 <Card title="Duración Prom." value={stats.avgDurationFormatted} color="#ffc107" icon="⏱️" />
             </div>
