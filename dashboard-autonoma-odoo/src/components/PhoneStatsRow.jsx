@@ -36,6 +36,7 @@ const PhoneStatsRow = ({ stats, locationName, filterSlot }) => {
                 <Card title="Realizadas" value={stats.outgoing} color="#007bff" icon="↗️" />
                 <Card title="Contestadas" value={stats.incoming} color="#28a745" icon="↙️" />
                 <Card title="No Contestadas" value={stats.missed} color="#dc3545" icon="❌" />
+                <Card title="Devueltas" value={stats.returned} color="#17a2b8" icon="↩️" />
                 <Card title="Duración Prom." value={stats.avgDurationFormatted} color="#ffc107" icon="⏱️" />
             </div>
         </div>
