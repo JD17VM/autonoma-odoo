@@ -62,16 +62,24 @@ function App() {
         odooStats = originalData.callStats;
     }
 
+    // 5. CÁLCULO DE LLAMADAS DEVUELTAS (SIMULADO)
+    // Total de llamadas no contestadas (histórico + real)
+    const totalMissed = xmlStats.missed + odooStats.missed;
+    // Se elige un porcentaje aleatorio entre 20% y 35% del total de no contestadas
+    const returnedCallsPercentage = Math.random() * (0.35 - 0.20) + 0.20;
+    const returnedCalls = Math.floor(totalMissed * returnedCallsPercentage);
+
     // Retornamos la suma combinada (XML Histórico + Odoo Real)
     // Mapeo:
     // - Realizadas = XML Outgoing + Odoo conteo_llamadas (Total Intentos)
     // - Contestadas = XML Incoming + Odoo total_llamadas_contestadas
     // - No Contestadas = XML Missed + Odoo total_llamadas_no_contestadas
     return { 
-        ...xmlStats, 
+        ...xmlStats,
+        returned: returnedCalls, // <--- NUEVO VALOR
         incoming: xmlStats.incoming + odooStats.answered,
         outgoing: xmlStats.outgoing + odooStats.total, 
-        missed: xmlStats.missed + odooStats.missed
+        missed: totalMissed
     };
   }, [filter, customDays, locationFilter, originalData]);
 
