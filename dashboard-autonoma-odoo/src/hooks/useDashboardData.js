@@ -171,7 +171,7 @@ export const useDashboardData = (filterType, salespersonId, customDays, location
                 callStatsDomain.push(['create_date', '>=', '2025-01-13']);
 
                 const LOCATION_MAP = {
-                    'victor_lira': 'llamada_1', // Telefono 1
+                    'santa_isabel': 'llamada_1', // Telefono 1
                     'san_jose': 'llamada_2',    // Telefono 2
                     'san_pedro': 'llamada_3'    // Telefono 3
                 };

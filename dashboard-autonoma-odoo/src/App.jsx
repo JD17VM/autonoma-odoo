@@ -15,7 +15,7 @@ import PhoneStatsRow from './components/PhoneStatsRow'; // <--- NUEVO COMPONENTE
 import { ODOO_CONFIG } from './config/odoo.config'; 
 
 // IMPORTAR DATOS Y HELPERS DE LLAMADAS
-import { XML_VICTOR_LIRA, XML_SAN_JOSE, XML_SAN_PEDRO } from './utils/callLogs';
+import { XML_SANTA_ISABEL, XML_SAN_JOSE, XML_SAN_PEDRO } from './utils/callLogs';
 import { parseAndFilterLogs, calculateCallStats } from './utils/callLogHelpers';
 import { getStartDate } from './utils/dateHelpers';
 
@@ -41,9 +41,9 @@ function App() {
     // 2. Juntar los XMLs según la sede seleccionada
     let logsToProcess = [];
     
-    // Por ahora solo Victor Lira tiene datos reales importados
-    if (locationFilter === 'all' || locationFilter === 'victor_lira') {
-        logsToProcess = [...logsToProcess, ...parseAndFilterLogs(XML_VICTOR_LIRA, startDate)];
+    // Por ahora solo Santa Isabel tiene datos reales importados
+    if (locationFilter === 'all' || locationFilter === 'santa_isabel') {
+        logsToProcess = [...logsToProcess, ...parseAndFilterLogs(XML_SANTA_ISABEL, startDate)];
     }
     if (locationFilter === 'all' || locationFilter === 'san_jose') {
         logsToProcess = [...logsToProcess, ...parseAndFilterLogs(XML_SAN_JOSE, startDate)];
@@ -86,7 +86,7 @@ function App() {
   const locationLabels = {
       'all': 'Todas las Sedes',
       'san_jose': 'San José',
-      'victor_lira': 'Víctor Lira',
+      'santa_isabel': 'Santa Isabel',
       'san_pedro': 'San Pedro'
   };
 
@@ -211,7 +211,7 @@ function App() {
                         onChange={(e) => setLocationFilter(e.target.value)}
                     >
                         <option value="all">📍 Todas las Sedes</option>
-                        <option value="victor_lira">📍 Víctor Lira</option>
+                        <option value="santa_isabel">📍 Santa Isabel</option>
                         <option value="san_jose">📍 San José</option>
                         <option value="san_pedro">📍 San Pedro</option>
                     </select>
